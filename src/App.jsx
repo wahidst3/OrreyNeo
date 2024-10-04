@@ -370,8 +370,11 @@ const propagate = (clock, a, e, n, i_deg, w_deg, node_deg) => {
 };
 
 const ThreeDBox = () => {
+  const [isVisible, setIsVisible] = useState(false); // State for visibility of the div
+  const cameraRef = useRef(null); //
   const [click, setClick] = useState(0); // Initialize planets state
   const mountRef = useRef(null);
+  const detailRef = useRef(null);
   const clock = useRef(0); // Reference for the clock
   const cometClock = useRef(0); // Reference for the comet's clock
   const brorsenClock = useRef(0); // Reference for the comet's clock
@@ -392,6 +395,8 @@ const ThreeDBox = () => {
       0.1,
       1000
     );
+ 
+    cameraRef.current = camera; 
     const renderer = new THREE.WebGLRenderer();
     const color = 0xffffff;
     const intensity = 1;
@@ -411,7 +416,7 @@ const ThreeDBox = () => {
     scene.add(earthGroup);
 
     // Starfield
-    const stars = getStarfield({ numStars: 20000 });
+    const stars = getStarfield({ numStars: 5000 });
     scene.add(stars);
 
     // Create Directional Light (Sunlight)
@@ -430,14 +435,32 @@ const ThreeDBox = () => {
     earthGroup.add(earthMesh);
 
     // Zoom functionality when Earth is clicked
+    let isZoomedIn = false; // Track zoom state
+       let lastCameraPosition = camera.position.clone(); // Store the last camera position dynamically
+    
+    
     const zoomOnEarth = () => {
-      
       const targetPosition = earthMesh.position.clone();
-      const distance = targetPosition.distanceTo(camera.position);
-      const zoomFactor = 0.5; // Define how much to zoom (you can adjust this)
+      const zoomFactor = 0.4; // Adjust this for zoom intensity
       const newPosition = targetPosition.lerp(camera.position, zoomFactor);
-      camera.position.copy(newPosition);
+
+      
+      // Update the last camera position before moving
+      lastCameraPosition.copy(camera.position);
+      
+      camera.position.copy(newPosition); // Zoom in
     };
+    
+    const zoomOutFromEarth = () => {
+      // Return camera to the last position
+      camera.position.copy(lastCameraPosition); 
+        
+      // Optionally update the last position after zooming out (if further control is needed)
+      lastCameraPosition.copy(camera.position);
+        // Return camera to the initial position
+       
+    };
+    
 
     // Add event listener for clicking on Earth
     earthMesh.userData = { isEarth: true }; // Tagging the Earth mesh
@@ -452,14 +475,29 @@ const ThreeDBox = () => {
       raycaster.setFromCamera(mouse, camera);
 
       const intersects = raycaster.intersectObjects(earthGroup.children);
+     
       if (intersects.length > 0) {
+        // Show the div if Earth is clicked
         const intersectedObject = intersects[0].object;
         if (intersectedObject.userData.isEarth) {
-          zoomOnEarth(); // Trigger zoom on Earth
+          if (!isZoomedIn) {
+            setIsVisible(true)
+            earthMesh.scale.set(0.7, 0.7, 0.7);
+            zoomOnEarth(); // Zoom in on first click
+        } else {
+            zoomOutFromEarth();
+            earthMesh.scale.set(0.5, 0.5, 0.5);
+            setIsVisible(false) // Zoom out on second click
         }
+        isZoomedIn = !isZoomedIn; 
+         ; 
+          // Trigger zoom on Earth
+        }
+      } else {
+        setIsVisible(false);
+         // Optionally hide the div if clicking elsewhere
       }
     };
-
     window.addEventListener("click", onMouseClick, false);
 
     // Draw the Earth's orbit path
@@ -653,6 +691,9 @@ const ThreeDBox = () => {
       requestAnimationFrame(animate);
 
       // Update clocks for orbital motion
+     
+      // Rotate the Earth on its axis
+    
       clock.current += 0.01;
       cometClock.current = 0.09*comet_T;
       catalinaClock.current = 0.25*catalina_T;
@@ -726,7 +767,32 @@ const ThreeDBox = () => {
     };
   }, []);
 
-  return <div ref={mountRef} />;
+  return(<>
+    <div ref={mountRef} />
+    <div style={{width:"20vw",height:"50vh",backgroundColor:"red",position:"absolute",top:210,left:80,display:"none"}} ref={detailRef}>
+      <h1>Earth</h1>
+      <h2>Orbit: {earth_a.toFixed(2)} AU</h2>
+      <h2>Inclination: 23.5°</h2>
+      
+    </div>{isVisible && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '20px',
+            right: '20px',
+            padding: '10px',
+            backgroundColor: '#fff',
+            border: '1px solid #000',
+          }}
+        >
+          <h3>Earth Details</h3>
+          <p>The Earth's axial tilt is approximately 23.5 degrees.</p>
+        </div>
+      )}
+
+    
+    </>
+  ) ;
 };
 
 export default ThreeDBox;
