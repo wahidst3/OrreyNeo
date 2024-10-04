@@ -1,303 +1,107 @@
-// import React, { useEffect } from "react";
-// // import { Canvas } from "@react-three/fiber";
-// // import { OrbitControls } from "@react-three/drei";
-// import EllipticalOrbit from "./component/elipe";
-// import MovingObject from "./component/move";
+// import React, { useEffect, useRef, useState } from "react";
+// import * as THREE from "three";
+// import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+// import getStarfield from "./component/starfield";
 
-// function App() {
-//   // const a = 1;  // Semi-major axis
-//   // const e = 0.5;  // Eccentricity
+// // Constants for Earth's orbital calculations
+// const EARTH_SEMI_MAJOR_AXIS = 1; // Semi-major axis of the Earth's orbit (in AU)
+// const EARTH_ECCENTRICITY = 0.0167; // Eccentricity of Earth's orbit
+// const EARTH_ORBIT_PERIOD = 365.25 * 24 * 3600; // Period of Earth's orbit in seconds
+// const EARTH_MEAN_MOTION = (2 * Math.PI) / EARTH_ORBIT_PERIOD;
 
-//   // const n = 0.1;  // Angular velocity (for animation)
+// // Constants for camera and rendering
+// const CAMERA_FIELD_OF_VIEW = 60;
+// const CAMERA_NEAR_PLANE = 0.1;
+// const CAMERA_FAR_PLANE = 1000;
+// const CLOCK_INCREMENT = 0.002;
+
+// // Define comets in an array
+// const comets = [
+//   {
+//     semiMajorAxis: 3.106380161,
+//     eccentricity: 0.682526943,
+//     orbitPeriod: 5.48 * 365.25 * 24 * 3600,
+//     inclination: 4.894555854,
+//     longitudeOfAscendingNode: 295.9854497,
+//     argumentOfPerihelion: 0.626837835,
+//   },
+//   {
+//     semiMajorAxis: (1.190641555 + 5.95) / 2,
+//     eccentricity: 0.6663127807,
+//     orbitPeriod: 6.74 * 365.25 * 24 * 3600,
+//     inclination: 15.1007464,
+//     longitudeOfAscendingNode: 111.3920029,
+//     argumentOfPerihelion: 203.6490232,
+//   },
+//   {
+//     semiMajorAxis: (0.589847 + 5.61) / 2,
+//     eccentricity: 0.809796,
+//     orbitPeriod: 5.46 * 365.25 * 24 * 3600,
+//     inclination: 29.3821,
+//     longitudeOfAscendingNode: 102.9676,
+//     argumentOfPerihelion: 14.9468,
+//   },
+//   {
+//     semiMajorAxis: (1.027116587 / (1 - 0.819799747)),
+//     eccentricity: 0.819799747,
+//     orbitPeriod: 13.61 * 365.25 * 24 * 3600,
+//     inclination: 54.98318484,
+//     longitudeOfAscendingNode: 270.341652,
+//     argumentOfPerihelion: 207.509246,
+//   },
  
-//   return (
-//     <>
-    
-//     </>
-//     // <Canvas>
-//     //   <ambientLight />
-//     //   <EllipticalOrbit a={a} e={e} />
-//     //   <MovingObject a={a} e={e} n={n} />
-//     //   <OrbitControls />
-//     // </Canvas>
-//   );
-// }
+// ];
 
-// export default App;
-// import React, { useEffect, useRef } from 'react';
-// import * as THREE from 'three';
-// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+// // Function to convert degrees to radians
+// const degreesToRadians = (degrees) => degrees * (Math.PI / 180);
 
-// const EllipticalOrbit = () => {
-//   const mountRef = useRef(null); // Reference to the DOM element
+// // Function to calculate the position based on orbital elements
+// const calculatePosition = (clock, semiMajorAxis, eccentricity, meanMotion, inclination, argumentOfPerihelion, longitudeOfAscendingNode) => {
+//   const meanAnomaly = meanMotion * clock;
+//   const eccentricAnomaly = meanAnomaly + eccentricity * Math.sin(meanAnomaly) * (1 + eccentricity * Math.cos(meanAnomaly));
+//   const radius = semiMajorAxis * (1 - eccentricity * Math.cos(eccentricAnomaly));
 
-//   useEffect(() => {
-//     // Scene setup
-//     const scene = new THREE.Scene();
-//     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-//     const renderer = new THREE.WebGLRenderer();
+//   // Position in orbital plane
+//   const xOrbit = radius * (Math.cos(eccentricAnomaly) - eccentricity);
+//   const yOrbit = radius * (Math.sqrt(1 - eccentricity ** 2) * Math.sin(eccentricAnomaly));
 
-//     // Append renderer to the DOM
-//     renderer.setSize(window.innerWidth, window.innerHeight);
-//     mountRef.current.appendChild(renderer.domElement);
+//   // Orbital elements (convert to radians)
+//   const inclinationRadians = degreesToRadians(inclination);
+//   const argumentOfPerihelionRadians = degreesToRadians(argumentOfPerihelion);
+//   const longitudeOfAscendingNodeRadians = degreesToRadians(longitudeOfAscendingNode);
 
-//     // Light setup
-//     const light = new THREE.PointLight(0xffffff, 1, 100);
-//     light.position.set(10, 10, 10);
-//     scene.add(light);
+//   // Apply rotation based on the orbital elements
+//   let x = xOrbit * Math.cos(argumentOfPerihelionRadians) - yOrbit * Math.sin(argumentOfPerihelionRadians);
+//   let y = xOrbit * Math.sin(argumentOfPerihelionRadians) + yOrbit * Math.cos(argumentOfPerihelionRadians);
+//   let z = 0;
 
-//     // Eccentricity (0 = circle, closer to 1 = stretched ellipse)
-//     let eccentricity = 0.6825; // Example value from the data you shared
+//   // Rotate for inclination (around x-axis)
+//   const x1 = x;
+//   const z1 = z * Math.cos(inclinationRadians) - y * Math.sin(inclinationRadians);
+//   y = z * Math.sin(inclinationRadians) + y * Math.cos(inclinationRadians);
+//   x = x1;
+//   z = z1;
 
-//     // Create an elliptical shape using EllipseCurve
-//     const ellipse = new THREE.EllipseCurve(
-//       0,  0,                         // Center x, y
-//       5,  5 * (1 - eccentricity),     // xRadius, yRadius (yRadius adjusted by eccentricity)
-//       0,  2 * Math.PI,                // StartAngle, EndAngle
-//       false,                          // Clockwise?
-//       0                               // Rotation
-//     );
+//   // Rotate for longitude of ascending node (around z-axis)
+//   const x2 = x * Math.cos(longitudeOfAscendingNodeRadians) - y * Math.sin(longitudeOfAscendingNodeRadians);
+//   y = x * Math.sin(longitudeOfAscendingNodeRadians) + y * Math.cos(longitudeOfAscendingNodeRadians);
+//   x = x2;
 
-//     // Get points for the ellipse curve
-//     const points = ellipse.getPoints(100);
-//     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-
-//     // Create a line material
-//     const material = new THREE.LineBasicMaterial({ color: 0xff0000 });
-
-//     // Create a line from geometry and material
-//     const ellipseLine = new THREE.Line(geometry, material);
-//     scene.add(ellipseLine);
-
-//     // Set up the camera position
-//     camera.position.z = 10;
-
-//     // OrbitControls to interact with the scene
-//     const controls = new OrbitControls(camera, renderer.domElement);
-
-//     // Animation function
-//     const animate = () => {
-//       requestAnimationFrame(animate);
-//       controls.update(); // Update controls
-//       renderer.render(scene, camera); // Render the scene
-//     };
-//     animate();
-
-//     // Cleanup on unmount
-//     return () => {
-//       mountRef.current.removeChild(renderer.domElement);
-//     };
-//   }, []);
-
-//   return (
-//     <div
-//       style={{ width: '100vw', height: '100vh' }}
-//       ref={mountRef} // This will hold the reference to the DOM element where Three.js renders
-//     />
-//   );
-// };
-
-// export default EllipticalOrbit;
-
-//4thn
-
-// import React, { useEffect, useRef } from 'react';
-// import * as THREE from 'three';
-// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-
-// const KeplerOrbit = () => {
-//   const mountRef = useRef(null); // Reference for mounting the scene
-
-//   const KeplerStart3 = (e, M) => {
-//     const t34 = e ** 2;
-//     const t35 = e * t34;
-//     const t33 = Math.cos(M);
-//     return M + (-0.5 * t35 + e + (t34 + 1.5 * t33 * t35) * t33) * Math.sin(M);
-//   };
-
-//   const eps3 = (e, M, x) => {
-//     const t1 = Math.cos(x);
-//     const t2 = -1 + e * t1;
-//     const t3 = Math.sin(x);
-//     const t4 = e * t3;
-//     const t5 = -x + t4 + M;
-//     const t6 = t5 / (0.5 * t5 * t4 / t2 + t2);
-//     return t5 / ((0.5 * t3 - (1 / 6) * t1 * t6) * e * t6 + t2);
-//   };
-
-//   const KeplerSolve = (e, M) => {
-//     const tol = 1.0e-14;
-//     const Mnorm = M % (2 * Math.PI);
-//     let E0 = KeplerStart3(e, Mnorm);
-//     let dE = tol + 1;
-//     let count = 0;
-
-//     while (dE > tol) {
-//       const E = E0 - eps3(e, Mnorm, E0);
-//       dE = Math.abs(E - E0);
-//       E0 = E;
-//       count += 1;
-
-//       if (count === 100) {
-//         console.error("KeplerSolve failed to converge!");
-//         break;
-//       }
-//     }
-//     return E0;
-//   };
-
-//   const propagate = (clock, a, e) => {
-//     const T = 120; // seconds
-//     const n = (2 * Math.PI) / T;
-//     const tau = 0; // time of pericenter passage
-
-//     const M = n * (clock - tau);
-//     const E = KeplerSolve(e, M);
-//     const cose = Math.cos(E);
-
-//     const r = a * (1 - e * cose);
-//     const sX = r * ((cose - e) / (1 - e * cose));
-//     const sY = r * (Math.sqrt(1 - e ** 2) * Math.sin(E) / (1 - e * cose));
-//     const sZ = 0;
-
-//     return { x: sX, y: sY, z: sZ };
-//   };
-
-//   useEffect(() => {
-//     // Scene setup
-//     const scene = new THREE.Scene();
-//     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-//     const renderer = new THREE.WebGLRenderer();
-//     renderer.setSize(window.innerWidth, window.innerHeight);
-//     mountRef.current.appendChild(renderer.domElement);
-
-//     const controls = new OrbitControls(camera, renderer.domElement);
-//     camera.position.z = 5;
-
-//     const a = 1; // Semi-major axis
-//     const e = 0.1; // Eccentricity
-
-//     // Orbit calculation
-//     const orbcoords = [];
-//     const ts = 120; // Number of time slices
-//     for (let clock = 1; clock <= ts; clock++) {
-//       const loc = propagate(clock, a, e);
-//       orbcoords.push(loc);
-//     }
-
-//     // Create the orbit
-//     const orbitGeometry = new THREE.BufferGeometry();
-//     const orbitPositions = new Float32Array(orbcoords.length * 3);
-//     orbcoords.forEach((point, index) => {
-//       orbitPositions.set([point.x, point.y, point.z], index * 3);
-//     });
-//     orbitGeometry.setAttribute('position', new THREE.BufferAttribute(orbitPositions, 3));
-    
-//     const orbitMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
-//     const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
-//     scene.add(orbitLine);
-
-//     // Create a sphere at the start of the orbit
-//     const sphereGeometry = new THREE.SphereGeometry(0.05, 32, 32);
-//     const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-//     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-//     sphere.position.set(orbcoords[0].x, orbcoords[0].y, orbcoords[0].z);
-//     scene.add(sphere);
-
-//     const animate = () => {
-//       requestAnimationFrame(animate);
-//       controls.update();
-//       renderer.render(scene, camera);
-//     };
-
-//     animate();
-
-//     return () => {
-//       mountRef.current.removeChild(renderer.domElement);
-//     };
-//   }, []);
-
-//   return <div ref={mountRef} style={{ width: '100vw', height: '100vh' }} />;
-// };
-
-// export default KeplerOrbit;
-
-
-//5th
-// import React, { useEffect, useRef } from 'react';
-// import * as THREE from 'three';
-// import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-// import getStarfield from './component/starfield';
-
-// // Constants for orbital calculations
-// const a = 1; // Semi-major axis of the orbit
-// const e = 0.0167; // Eccentricity of Earth's orbit
-// const T = 120; // Period of orbit in seconds
-// const n = (2 * Math.PI) / T; // Mean motion
-
-// // Kepler's equation calculations
-// const keplerStart3 = (e, M) => {
-//   const t34 = e ** 2;
-//   const t35 = e * t34;
-//   const t33 = Math.cos(M);
-//   return M + (-0.5 * t35 + e + (t34 + 1.5 * t33 * t35) * t33) * Math.sin(M);
-// };
-
-// const eps3 = (e, M, x) => {
-//   const t1 = Math.cos(x);
-//   const t2 = -1 + e * t1;
-//   const t3 = Math.sin(x);
-//   const t4 = e * t3;
-//   const t5 = -x + t4 + M;
-//   const t6 = t5 / (0.5 * t5 * t4 / t2 + t2);
-//   return t5 / ((0.5 * t3 - (1 / 6) * t1 * t6) * e * t6 + t2);
-// };
-
-// const keplerSolve = (e, M) => {
-//   const tol = 1.0e-14;
-//   const Mnorm = M % (2 * Math.PI);
-//   let E0 = keplerStart3(e, Mnorm);
-//   let dE = tol + 1;
-//   let count = 0;
-
-//   while (dE > tol) {
-//     const E = E0 - eps3(e, Mnorm, E0);
-//     dE = Math.abs(E - E0);
-//     E0 = E;
-//     count += 1;
-
-//     if (count === 100) {
-//       console.error("KeplerSolve failed to converge!");
-//       break;
-//     }
-//   }
-//   return E0;
-// };
-// const propagate = (clock) => {
-//   const M = n * clock; // Mean anomaly
-//   const E = keplerSolve(e, M); // Eccentric anomaly
-//   const cose = Math.cos(E); // Cosine of eccentric anomaly
-
-//   const r = a * (1 - e * cose); // Radius based on eccentricity and angle
-
-//   // Increase the radius to increase the width of the orbit
-//   const orbitWidthMultiplier = 1.5; // Adjust this value to increase the width
-//   const sX = r * orbitWidthMultiplier * ((cose - e) / (1 - e * cose));
-//   const sY = r * orbitWidthMultiplier * ((Math.sqrt(1 - e ** 2) * Math.sin(E)) / (1 - e * cose));
-
-//   return new THREE.Vector3(sX, sY, 0); // Return the new position as a 3D vector
+//   return new THREE.Vector3(x, y, z);
 // };
 
 // const ThreeDBox = () => {
+//   const [planets, setPlanets] = useState([]); // Initialize planets state
 //   const mountRef = useRef(null);
 //   const clock = useRef(0); // Reference for the clock
+//   const cometMeshes = useRef([]); // Reference for comet meshes
 
 //   useEffect(() => {
 //     // Scene, Camera, and Renderer
 //     const scene = new THREE.Scene();
-//     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+//     const camera = new THREE.PerspectiveCamera(CAMERA_FIELD_OF_VIEW, window.innerWidth / window.innerHeight, CAMERA_NEAR_PLANE, CAMERA_FAR_PLANE);
 //     const renderer = new THREE.WebGLRenderer();
-//     const color = 0xFFFFFF;
+//     const color = 0xffffff;
 //     const intensity = 1;
 //     const light = new THREE.AmbientLight(color, intensity);
 //     scene.add(light);
@@ -311,7 +115,7 @@
 //     controls.enableDamping = true; // Smooth controls
 
 //     const earthGroup = new THREE.Group();
-//     earthGroup.rotation.z = -23.4 * Math.PI / 180;
+//     earthGroup.rotation.z = (-23.4 * Math.PI) / 180;
 //     scene.add(earthGroup);
 
 //     // Starfield
@@ -325,7 +129,7 @@
 
 //     // Texture Loader
 //     const textureLoader = new THREE.TextureLoader();
-//     const earthTexture = textureLoader.load('/assets/2k_earth_daymap.jpg');
+//     const earthTexture = textureLoader.load("/assets/2k_earth_daymap.jpg");
 //     const geometry = new THREE.IcosahedronGeometry(1, 12);
 //     const material = new THREE.MeshStandardMaterial({ map: earthTexture });
 //     const earthMesh = new THREE.Mesh(geometry, material);
@@ -333,86 +137,256 @@
 
 //     earthGroup.add(earthMesh);
 
-//     // Draw the orbit path
-//     const points = [];
-//     const orbitSteps = 100; // Number of steps for the orbit line
-//     for (let i = 0; i <= orbitSteps; i++) {
-//       const loc = propagate((i / orbitSteps) * T); // Adjusted for the orbit period
-//       points.push(loc);
+//     // Draw the Earth's orbit path
+//     const earthPoints = [];
+//     const earthOrbitSteps = 100; // Number of steps for the Earth's orbit line
+//     for (let i = 0; i <= earthOrbitSteps; i++) {
+//       const loc = calculatePosition(
+//         (i / earthOrbitSteps) * EARTH_ORBIT_PERIOD,
+//         EARTH_SEMI_MAJOR_AXIS,
+//         EARTH_ECCENTRICITY,
+//         EARTH_MEAN_MOTION,
+//         0,
+//         0,
+//         0
+//       );
+//       earthPoints.push(loc);
 //     }
 
-//     const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
-//     const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 });
-//     const orbitLine = new THREE.Line(orbitGeometry, orbitMaterial);
-//     scene.add(orbitLine);
+//     const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(earthPoints);
+//     const earthOrbitMaterial = new THREE.LineBasicMaterial({
+//       color: 0x0000ff,
+//       transparent: true,
+//       opacity: 0.5,
+//     });
+//     const earthOrbitLine = new THREE.Line(earthOrbitGeometry, earthOrbitMaterial);
+//     scene.add(earthOrbitLine);
 
-//     // Position the camera
-//     camera.position.z = 5;
+//     // Loop through comets array to draw orbits
+//     comets.forEach((comet) => {
+//       const cometPoints = [];
+//       const cometOrbitSteps = 100; // Number of steps for the comet's orbit line
+//       for (let i = 0; i <= cometOrbitSteps; i++) {
+//         const loc = calculatePosition(
+//           (i / cometOrbitSteps) * comet.orbitPeriod,
+//           comet.semiMajorAxis,
+//           comet.eccentricity,
+//           (2 * Math.PI) / comet.orbitPeriod,
+//           comet.inclination,
+//           comet.argumentOfPerihelion,
+//           comet.longitudeOfAscendingNode
+//         );
+//         cometPoints.push(loc);
+//       }
 
-//     // Animation function
-//     const animate = () => {
-//       requestAnimationFrame(animate);
-//       controls.update(); // Update controls on each frame
+//       const cometOrbitGeometry = new THREE.BufferGeometry().setFromPoints(cometPoints);
+//       const cometOrbitMaterial = new THREE.LineBasicMaterial({
+//         color: 0xffa500, // Color for the comet orbit line
+//         transparent: true,
+//         opacity: 0.9,
+//       });
+//       const cometOrbitLine = new THREE.Line(cometOrbitGeometry, cometOrbitMaterial);
+//       scene.add(cometOrbitLine);
 
-//       // Update Earth's position based on Kepler's equations
-//       earthMesh.position.copy(propagate(clock.current)); // Set Earth's position
+//       // Create a mesh for the comet
+//       const cometGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+//       const cometMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Changed to red
+//       const cometMesh = new THREE.Mesh(cometGeometry, cometMaterial);
+//       const cometPosition = calculatePosition(
+//         clock.current,
+//         comet.semiMajorAxis,
+//         comet.eccentricity,
+//         (2 * Math.PI) / comet.orbitPeriod,
+//         comet.inclination,
+//         comet.argumentOfPerihelion,
+//         comet.longitudeOfAscendingNode
+//       );
+//       // cometMesh.position.copy(calculatePosition(clock.current, comet.semiMajorAxis, comet.eccentricity, (2 * Math.PI) / comet.orbitPeriod, comet.inclination, comet.argumentOfPerihelion, comet.longitudeOfAscendingNode));
+//       // cometMesh.position.set(cometPosition.x + 0.9, cometPosition.y + 0.4, cometPosition.z + 0.4);
+//       const offsetDistance = 1.5; // Adjust this distance as needed
+//       cometMesh.position.copy(cometPosition).multiplyScalar(offsetDistance);
+//       scene.add(cometMesh);
+//       cometMeshes.current.push({ comet, cometMesh }); // Store the comet and its mesh in the ref
+//     });
+// earthMesh.scale.set(0.5,0.5,0.5)
+//     // Camera position
+//     camera.position.z = 8;
 
-//       // Increment clock for the animation
-//       clock.current += 0.01; // Adjust speed of orbiting
-//       if (clock.current > T) clock.current = 0; // Reset clock
+//     // Animation loop
+//    // Animation loop
+//    const animate = () => {
+//     requestAnimationFrame(animate);
+  
+//     controls.update();
+  
+//     // Increment clock based on elapsed time
+//     clock.current += CLOCK_INCREMENT; // Keep a running total of time
+//     earthGroup.rotation.y += CLOCK_INCREMENT; // Rotate the Earth
+//     earthGroup.rotation.x += CLOCK_INCREMENT; // Rotate the Earth
+  
+//     // Update comet mesh positions
+//     cometMeshes.current.forEach((cometMeshData) => {
+//       const comet = cometMeshData.comet;
+//       const cometMesh = cometMeshData.cometMesh;
+  
+//       // Calculate new position based on the current total clock time
+//       cometMesh.position.copy(
+//         calculatePosition(
+//           clock.current,
+//           comet.semiMajorAxis,
+//           comet.eccentricity,
+//           (2 * Math.PI) / comet.orbitPeriod,
+//           comet.inclination,
+//           comet.argumentOfPerihelion,
+//           comet.longitudeOfAscendingNode
+//         )
+//       );
+//     });
+  
+//     renderer.render(scene, camera);
+//   };
+  
+//   // Handle window resize
+//   window.addEventListener('resize', () => {
+//     camera.aspect = window.innerWidth / window.innerHeight;
+//     camera.updateProjectionMatrix();
+//     renderer.setSize(window.innerWidth, window.innerHeight);
+//   });
+  
+//   animate();
+  
 
-//       renderer.render(scene, camera);
-//     };
-
-//     // Start animation
-//     animate();
-
-//     // Cleanup function
+//     // Cleanup on component unmount
 //     return () => {
 //       mountRef.current.removeChild(renderer.domElement);
 //     };
 //   }, []);
 
-//   return <div ref={mountRef}></div>;
+//   return <div ref={mountRef} style={{ width: "100vw", height: "100vh" }} />;
 // };
 
 // export default ThreeDBox;
-import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import getStarfield from './component/starfield';
+import React, { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import getStarfield from "./component/starfield";
 
 // Constants for Earth's orbital calculations
-const earth_a = 1; // Semi-major axis of the Earth's orbit
+const earth_a = 1; // Semi-major axis of the Earth's orbit (in AU)
 const earth_e = 0.0167; // Eccentricity of Earth's orbit
-const earth_T = 120; // Period of Earth's orbit in seconds
-const earth_n = (2 * Math.PI) / earth_T; // Mean motion for Earth
+const earth_T = 365.25 * 24 * 3600; // Period of Earth's orbit in seconds
+const earth_n = (2 * Math.PI) / earth_T;
 
 // Constants for Comet's orbital calculations
-const comet_a = 2; // Semi-major axis of the comet's orbit
-const comet_e = 0.7; // Eccentricity of the comet's orbit (more elongated)
-const comet_T = 300; // Period of comet's orbit in seconds
+const comet_a = 3.106380161; // Semi-major axis of the comet's orbit (in AU)
+const comet_e = 0.682526943; // Eccentricity of the comet's orbit
+const comet_T = 5.48 * 365.25 * 24 * 3600; // Period of comet's orbit in seconds (convert from years to seconds)
 const comet_n = (2 * Math.PI) / comet_T; // Mean motion for the comet
+const cometInclination = 4.894555854; // Inclination of the comet in degrees
+const cometNode = 295.9854497; // Longitude of ascending node in degrees
+const cometArgumentOfPerihelion = 0.626837835; // Argument of perihelion in degrees
 
-const propagate = (clock, a, e, n) => {
+// Orbital elements for P/2008 S1 (Catalina-McNaught)
+const catalina_a = (1.190641555 + 5.95) / 2; // Semi-major axis of the orbit (average of perihelion and aphelion distance in AU)
+const catalina_e = 0.6663127807; // Eccentricity of the orbit
+const catalina_T = 6.74 * 365.25 * 24 * 3600; // Period of the orbit in seconds (convert from years to seconds)
+const catalina_n = (2 * Math.PI) / catalina_T; // Mean motion for the object
+const catalinaInclination = 15.1007464; // Inclination in degrees
+const catalinaNode = 111.3920029; // Longitude of ascending node in degrees
+const catalinaArgumentOfPerihelion = 203.6490232; // Argument of perihelion in degrees
+//siding
+const sidingSpring_a = (1.227689026 + 4.87) / 2; // Semi-major axis of the orbit (average of perihelion and aphelion distance in AU)
+const sidingSpring_e = 0.5972436348; // Eccentricity of the orbit
+const sidingSpring_T = 5.32 * 365.25 * 24 * 3600; // Period of the orbit in seconds (convert from years to seconds)
+const sidingSpring_n = (2 * Math.PI) / sidingSpring_T; // Mean motion for the object
+const sidingSpringInclination = 27.84477766; // Inclination in degrees
+const sidingSpringNode = 31.25192352; // Longitude of ascending node in degrees
+const sidingSpringArgumentOfPerihelion = 356.3636966; // Argument of perihelion in degrees
+
+
+//For brorsan
+const brorsen_a = (0.589847 + 5.61) / 2; // Semi-major axis in AU
+const brorsen_e = 0.809796; // Eccentricity of the orbit
+const brorsen_T = 5.46 * 365.25 * 24 * 3600; // Period in seconds
+const brorsen_n = (2 * Math.PI) / brorsen_T; // Mean motion
+const brorsenInclination = 29.3821; // Inclination in degrees
+const brorsenNode = 102.9676; // Longitude of ascending node in degrees
+const brorsenArgumentOfPerihelion = 14.9468; // Argument of perihelion in degrees
+
+// For 8P/tutle
+const tutle_a = 1.027116587 / (1 - 0.819799747); // Semi-major axis in AU
+const tutle_e = 0.819799747; // Eccentricity of the orbit
+const tutle_T = 13.61 * 365.25 * 24 * 3600; // Period in seconds
+const tutle_n = (2 * Math.PI) / tutle_T; // Mean motion
+const tutleInclination = 54.98318484; // Inclination in degrees
+const tutleNode = 270.341652; // Longitude of ascending node in degrees
+const tutleArgumentOfPerihelion = 207.509246; // Argument of perihelion in degrees
+//new
+
+// Function to convert degrees to radians
+const degreesToRadians = (degrees) => degrees * (Math.PI / 180);
+
+// Updated propagate function to calculate the position based on orbital elements
+const propagate = (clock, a, e, n, i_deg, w_deg, node_deg) => {
   const M = n * clock; // Mean anomaly
   const E = M + e * Math.sin(M) * (1 + e * Math.cos(M)); // Eccentric anomaly (approximation)
   const cose = Math.cos(E); // Cosine of eccentric anomaly
   const r = a * (1 - e * cose); // Radius based on eccentricity and angle
-  return new THREE.Vector3(r * (cose - e), r * (Math.sqrt(1 - e ** 2) * Math.sin(E)), 0); // Return the new position as a 3D vector
+
+  // Position in orbital plane
+  const x_orbit = r * (cose - e);
+  const y_orbit = r * (Math.sqrt(1 - e ** 2) * Math.sin(E));
+
+  // Orbital elements (convert to radians)
+  const i = degreesToRadians(i_deg); // Inclination
+  const w = degreesToRadians(w_deg); // Argument of perihelion
+  const node = degreesToRadians(node_deg); // Longitude of ascending node
+
+  // Apply rotation based on the orbital elements
+  let x = x_orbit * Math.cos(w) - y_orbit * Math.sin(w);
+  let y = x_orbit * Math.sin(w) + y_orbit * Math.cos(w);
+  let z = 0;
+
+  // Rotate for inclination (around x-axis)
+  const x1 = x;
+  const z1 = z * Math.cos(i) - y * Math.sin(i);
+  y = z * Math.sin(i) + y * Math.cos(i);
+  x = x1;
+  z = z1;
+
+  // Rotate for longitude of ascending node (around z-axis)
+  const x2 = x * Math.cos(node) - y * Math.sin(node);
+  y = x * Math.sin(node) + y * Math.cos(node);
+  x = x2;
+
+  return new THREE.Vector3(x, y, z); // Return the new position in 3D space
 };
 
 const ThreeDBox = () => {
+  const [planets, setPlanets] = useState([]); // Initialize planets state
   const mountRef = useRef(null);
   const clock = useRef(0); // Reference for the clock
   const cometClock = useRef(0); // Reference for the comet's clock
+  const brorsenClock = useRef(0); // Reference for the comet's clock
+  const catalinaClock = useRef(0); // Reference for P/2008 S1 (Catalina-McNaught)'s clock
+  const tutleClock = useRef(0); // Reference for P/2008 S1 (Catalina-McNaught)'s clock
+  const levyClock = useRef(0);
+  const mcnaughtRussellClock = useRef(0);
+  const gibbsClock = useRef(0);
+  const ponsGambartClock = useRef(0);
+  const blanpainClock = useRef(0);
 
   useEffect(() => {
     // Scene, Camera, and Renderer
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      90,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
+    );
     const renderer = new THREE.WebGLRenderer();
-    const color = 0xFFFFFF;
+    const color = 0xffffff;
     const intensity = 1;
     const light = new THREE.AmbientLight(color, intensity);
     scene.add(light);
@@ -426,7 +400,7 @@ const ThreeDBox = () => {
     controls.enableDamping = true; // Smooth controls
 
     const earthGroup = new THREE.Group();
-    earthGroup.rotation.z = -23.4 * Math.PI / 180;
+    earthGroup.rotation.z = (-23.4 * Math.PI) / 180;
     scene.add(earthGroup);
 
     // Starfield
@@ -434,13 +408,13 @@ const ThreeDBox = () => {
     scene.add(stars);
 
     // Create Directional Light (Sunlight)
-    const sunlight = new THREE.DirectionalLight(0xffffff, 1);
-    sunlight.position.set(5, 10, 7);
-    scene.add(sunlight);
+    // const sunlight = new THREE.DirectionalLight(0xffffff, 1);
+    // sunlight.position.set(5, 10, 7);
+    // scene.add(sunlight);
 
     // Texture Loader
     const textureLoader = new THREE.TextureLoader();
-    const earthTexture = textureLoader.load('/assets/2k_earth_daymap.jpg');
+    const earthTexture = textureLoader.load("/assets/earth.jpg");
     const geometry = new THREE.IcosahedronGeometry(1, 12);
     const material = new THREE.MeshStandardMaterial({ map: earthTexture });
     const earthMesh = new THREE.Mesh(geometry, material);
@@ -448,73 +422,302 @@ const ThreeDBox = () => {
 
     earthGroup.add(earthMesh);
 
+    // Zoom functionality when Earth is clicked
+    const zoomOnEarth = () => {
+      const targetPosition = earthMesh.position.clone();
+      const distance = targetPosition.distanceTo(camera.position);
+      const zoomFactor = 0.5; // Define how much to zoom (you can adjust this)
+      const newPosition = targetPosition.lerp(camera.position, zoomFactor);
+      camera.position.copy(newPosition);
+    };
+
+    // Add event listener for clicking on Earth
+    earthMesh.userData = { isEarth: true }; // Tagging the Earth mesh
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onMouseClick = (event) => {
+      event.preventDefault();
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(earthGroup.children);
+      if (intersects.length > 0) {
+        const intersectedObject = intersects[0].object;
+        if (intersectedObject.userData.isEarth) {
+          zoomOnEarth(); // Trigger zoom on Earth
+        }
+      }
+    };
+
+    window.addEventListener("click", onMouseClick, false);
+
     // Draw the Earth's orbit path
     const earthPoints = [];
     const earthOrbitSteps = 100; // Number of steps for the Earth's orbit line
     for (let i = 0; i <= earthOrbitSteps; i++) {
-      const loc = propagate((i / earthOrbitSteps) * earth_T, earth_a, earth_e, earth_n); // Adjusted for the orbit period
+      const loc = propagate(
+        (i / earthOrbitSteps) * earth_T,
+        earth_a,
+        earth_e,
+        earth_n,
+        0,
+        0,
+        0
+      ); // Adjusted for the orbit period
       earthPoints.push(loc);
     }
 
-    const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(earthPoints);
-    const earthOrbitMaterial = new THREE.LineBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 });
-    const earthOrbitLine = new THREE.Line(earthOrbitGeometry, earthOrbitMaterial);
+    const earthOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      earthPoints
+    );
+    const earthOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0x0000ff,
+      transparent: true,
+      opacity: 0.5,
+    });
+    const earthOrbitLine = new THREE.Line(
+      earthOrbitGeometry,
+      earthOrbitMaterial
+    );
     scene.add(earthOrbitLine);
 
     // Draw the Comet's orbit path
     const cometPoints = [];
-    const cometOrbitSteps = 100; // Number of steps for the comet's orbit line
+    const cometOrbitSteps = 100; 
     for (let i = 0; i <= cometOrbitSteps; i++) {
-      const loc = propagate((i / cometOrbitSteps) * comet_T, comet_a, comet_e, comet_n); // Adjusted for the orbit period
+      const loc = propagate(
+        (i / cometOrbitSteps) * comet_T,
+        comet_a,
+        comet_e,
+        comet_n,
+        cometInclination,
+        cometArgumentOfPerihelion,
+        cometNode
+      );
       cometPoints.push(loc);
     }
 
-    const cometOrbitGeometry = new THREE.BufferGeometry().setFromPoints(cometPoints);
-    const cometOrbitMaterial = new THREE.LineBasicMaterial({ color: 0xffa500, transparent: true, opacity: 0.9 });
-    const cometOrbitLine = new THREE.Line(cometOrbitGeometry, cometOrbitMaterial);
+    const cometOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      cometPoints
+    );
+    const cometOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xffa500,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const cometOrbitLine = new THREE.Line(
+      cometOrbitGeometry,
+      cometOrbitMaterial
+    );
     scene.add(cometOrbitLine);
-
-    // Create Comet
+     // Create the comet mesh
+     const cometGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+     const cometMaterial = new THREE.MeshStandardMaterial({ color: 0xffa500 });
+     const cometMesh = new THREE.Mesh(cometGeometry, cometMaterial);
+     scene.add(cometMesh);
  
-    const cometTexture = textureLoader.load('/assets/com.png');
-    const cometGeometry = new THREE.SphereGeometry(0.09, 22, 12);
-    const cometMaterial = new THREE.MeshStandardMaterial({map:cometTexture }); // Color of the comet
-    const cometMesh = new THREE.Mesh(cometGeometry, cometMaterial);
-    scene.add(cometMesh);
 
-    // Position the camera
-    camera.position.z = 5;
+    // Draw the orbit for P/2008 S1 (Catalina-McNaught)
+    const catalinaPoints = [];
+    const catalinaOrbitSteps = 100;
+    for (let i = 0; i <= catalinaOrbitSteps; i++) {
+      const loc = propagate(
+        (i / catalinaOrbitSteps) * catalina_T,
+        catalina_a,
+        catalina_e,
+        catalina_n,
+        catalinaInclination,
+        catalinaArgumentOfPerihelion,
+        catalinaNode
+      );
+      catalinaPoints.push(loc);
+    }
 
-    // Animation function
+    const catalinaOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      catalinaPoints
+    );
+    const catalinaOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const catalinaOrbitLine = new THREE.Line(
+      catalinaOrbitGeometry,
+      catalinaOrbitMaterial
+    );
+    scene.add(catalinaOrbitLine);
+    const catalianaTexture = textureLoader.load("/assets/catali.png");    
+    const catalinaGeometry = new THREE.SphereGeometry(0.3, 16, 16);
+    const catalinaMaterial = new THREE.MeshStandardMaterial({
+      map: catalianaTexture
+    });
+    const catalinaMesh = new THREE.Mesh(catalinaGeometry, catalinaMaterial);
+    scene.add(catalinaMesh);
+    const spriteMaterial = new THREE.SpriteMaterial({
+      map: new THREE.TextureLoader().load('/assets/lights.png'), // Use a glow texture
+      // Glow color
+      blending: THREE.AdditiveBlending,
+      transparent: true
+    });
+    
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(2, 2, 0.4); // Adjust scale as necessary
+    catalinaMesh.add(sprite); // Add the sprite to the main mesh
+
+    //brorsen
+    // Propagate the orbit using the converted parameters for Brorsen
+    const brorsenPoints = [];
+    const brorsenOrbitSteps = 100;
+    for (let i = 0; i <= brorsenOrbitSteps; i++) {
+      const loc = propagate(
+        (i / brorsenOrbitSteps) * brorsen_T,
+        brorsen_a,
+        brorsen_e,
+        brorsen_n,
+        brorsenInclination,
+        brorsenArgumentOfPerihelion,
+        brorsenNode
+      );
+      brorsenPoints.push(loc);
+    }
+    const brorsenOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      brorsenPoints
+    );
+    const brorsenOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xff0000, 
+      transparent: true,
+      opacity: 0.8,
+    });
+
+    const brorsenOrbitLine = new THREE.Line(
+      brorsenOrbitGeometry,
+      brorsenOrbitMaterial
+    );
+    scene.add(brorsenOrbitLine);
+    const brorsenGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const brorsenMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Set a different color for visibility
+    const brorsenMesh = new THREE.Mesh(brorsenGeometry, brorsenMaterial);
+    scene.add(brorsenMesh);
+
+    // tutle
+    const tutlePoints = [];
+    const tutleOrbitSteps = 100;
+    for (let i = 0; i <= tutleOrbitSteps; i++) {
+      const loc = propagate(
+        (i / tutleOrbitSteps) * tutle_T,
+        tutle_a,
+        tutle_e,
+        tutle_n,
+        tutleInclination,
+        tutleArgumentOfPerihelion,
+        tutleNode
+      );
+      tutlePoints.push(loc);
+    }
+
+    const tutleOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      tutlePoints
+    );
+    const tutleOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xff0000,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const tutleOrbitLine = new THREE.Line(
+      tutleOrbitGeometry,
+      tutleOrbitMaterial
+    );
+    scene.add(tutleOrbitLine);
+    const tutleGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+    const tutleMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 }); // Set a different color for visibility
+    const tutleMesh = new THREE.Mesh(tutleGeometry, tutleMaterial);
+    scene.add(tutleMesh);
+
+    // Set camera position
+    camera.position.z = 5; // Initial camera position
+
+    // Animation loop
+    // POSITION OF COMET AND ASTERIODE ON ITS ORBIT
     const animate = () => {
       requestAnimationFrame(animate);
-      controls.update(); // Update controls on each frame
+
+      // Update clocks for orbital motion
+      clock.current += 0.01;
+      cometClock.current += 0.02;
+      catalinaClock.current = 0.25 * catalina_T;
+      brorsenClock.current = 0.03 * brorsen_T;
+      tutleClock.current = 0.04 * tutle_T;
 
       // Update Earth's position based on Kepler's equations
-      earthMesh.position.copy(propagate(clock.current, earth_a, earth_e, earth_n)); // Set Earth's position
+      earthMesh.position.copy(
+        propagate(clock.current, earth_a, earth_e, earth_n, 0, 0, 0)
+      );
 
-      // Update Comet's position based on Kepler's equations
-      cometMesh.position.copy(propagate(cometClock.current, comet_a, comet_e, comet_n)); // Set Comet's position
+      // Update Comet's position based on Kepler's equations and orbital elements
+      cometMesh.position.copy(
+        propagate(
+          cometClock.current,
+          comet_a,
+          comet_e,
+          comet_n,
+          cometInclination,
+          cometArgumentOfPerihelion,
+          cometNode
+        )
+      );
 
-      // Increment clocks for the animation
-      clock.current += 0.01; // Adjust speed of orbiting
-      cometClock.current += 0.02; // Adjust speed of comet's orbiting
-      if (clock.current > earth_T) clock.current = 0; // Reset Earth clock
-      if (cometClock.current > comet_T) cometClock.current = 0; // Reset Comet clock
-
-      renderer.render(scene, camera);
+      // Update Catalina-McNaught's position based on its orbital elements
+      catalinaMesh.position.copy(
+        propagate(
+          catalinaClock.current,
+          catalina_a,
+          catalina_e,
+          catalina_n,
+          catalinaInclination,
+          catalinaArgumentOfPerihelion,
+          catalinaNode
+        )
+      );
+      // Update Brorsen's position
+      brorsenMesh.position.copy(
+        propagate(
+          brorsenClock.current,
+          brorsen_a,
+          brorsen_e,
+          brorsen_n,
+          brorsenInclination,
+          brorsenArgumentOfPerihelion,
+          brorsenNode
+        )
+      );
+      tutleMesh.position.copy(
+        propagate(
+          tutleClock.current,
+          tutle_a,
+          tutle_e,
+          tutle_n,
+          tutleInclination,
+          tutleArgumentOfPerihelion,
+          tutleNode
+        )
+      );
+      controls.update(); // Update controls
+      renderer.render(scene, camera); // Render the scene
     };
 
-    // Start animation
     animate();
 
-    // Cleanup function
+    // Cleanup function when component unmounts
     return () => {
+      window.removeEventListener("click", onMouseClick, false);
       mountRef.current.removeChild(renderer.domElement);
     };
   }, []);
 
-  return <div ref={mountRef}></div>;
+  return <div ref={mountRef} />;
 };
 
 export default ThreeDBox;
